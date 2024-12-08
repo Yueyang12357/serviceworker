@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>service worker</title>
+    <link rel="stylesheet" href="./index.css" />
+  </head>
+  <body>
+    <button id="sendMsg">发送消息</button>
+    <button id="fetchApi">请求接口</button>
+    <button id="image">加载图片</button>
+    <div id="image-box"></div>
+  </body>
+  <!-- <script src="./service-worker.js"></script> -->
+  <script>
+    (() => {
+      const t = {
+        id: 0,
+      };
+      navigator.serviceWorker.getRegistrations().then(async (registrations) => {
+        let hasServiceWorker = true;
+        registrations.forEach((sw) => {
+          // 注销serviceWorker
+          //   for (let registration of registrations) {
+          //     registration.unregister();
+          //   }
+        //   判断是否存在serviceWorker
+            if (sw.scope === " http://127.0.0.1:8080/") {
+              hasServiceWorker = sw;
+            //   sw.unregister()
+            }
+        });
+        // 更新serviceworker
+        // const registration = await navigator.serviceWorker.getRegistration()
+        // registration.update();
+        const permission = await Notification.requestPermission();
+        console.log("permission", permission);
+        if (!hasServiceWorker) {
+          // 注册 Service Worker
+          const registration = await navigator.serviceWorker.register(
+            "./service-worker.js",
+            {
+              scope: "/",
+            }
+          );
+          console.log(
+            "Service Worker registered with scope：",
+            registration.scope
+          );
+          if (permission === "granted") {
+            registration.showNotification("Hello World");
+          }
+          // 2. 通过`registration`对象获得`PushManager`对象
+          const pushManager = registration.pushManager;
+          // 3. 通过`PushManager`对象订阅消息推送，获得`subscription`对象
+          const hasSubscription = await pushManager.getSubscription();
+          if (!hasSubscription) {
+            const subscription = await pushManager.subscribe({
+              // 是否只有用户可见
+              userVisibleOnly: true,
+              // 服务器公钥
+              applicationServerKey:
+                "BDNofQmRYyHU9MQWpgib4rDnN8SVKE_hp6gyb7RZlYBFtz2Mi-I3QQ8emDgO4bvnoxEz1JEda08rdmp2P0NuMNE",
+            });
+            console.log("subscription", subscription);
+          } else {
+            console.log("hasSubscription", hasSubscription);
+          }
+        } else {
+          console.log("已存在service worker");
+        }
+        // 监听从service worker线程发送到主线程的message
+        navigator.serviceWorker.addEventListener("message", (event) => {
+          console.log("service worker传到主线程的事件：", event);
+          console.log("t:", t);
+        });
+
+        // postMessage方法，从主线程发送数据到worker，注意：所有数据必须是深拷贝，以免发生并发问题
+        document.getElementById("sendMsg").addEventListener("click", () => {
+          console.log("发送消息");
+          navigator.serviceWorker.controller.postMessage(t);
+        });
+
+        // 接口请求
+        document.getElementById("fetchApi").addEventListener("click", () => {
+          console.log("请求接口");
+          fetch("./data.json")
+            .then((res) => {
+              return res.json();
+            })
+            .then((data) => {
+              console.log("fetch-data:", data);
+            });
+        });
+        document.getElementById("image").addEventListener("click", () => {
+          console.log("加载图片");
+          const box = document.getElementById("image-box");
+          const image = document.createElement("img");
+          image.src = "./flower.JPG";
+          box.append(image);
+        });
+      });
+    })();
+  </script>
+</html>

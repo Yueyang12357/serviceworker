@@ -7,62 +7,141 @@
     <link rel="stylesheet" href="./index.css" />
   </head>
   <body>
+    <button id="add-cache">添加缓存</button>
+    <button id="get-cache">获取缓存</button>
+    <button id="remove-cache">删除缓存</button>
+    <button id="clear-cache">清空缓存</button>
     <button id="sendMsg">发送消息</button>
     <button id="fetchApi">请求接口</button>
+    <button id="updateCache">更新缓存</button>
     <button id="image">加载图片</button>
     <div id="image-box"></div>
   </body>
-  <!-- <script src="./service-worker.js"></script> -->
+  <script>
+    // 添加缓存
+    document.getElementById("add-cache").addEventListener("click", () => {
+      caches.open("my-cache").then((cache) => {
+        cache.put(new Request("/"), new Response("Hello World"));
+        alert("成功");
+      });
+    });
+
+    // 获取缓存
+    document.getElementById("get-cache").addEventListener("click", () => {
+      caches.open("my-cache").then((cache) => {
+        cache.match("/").then((response) => {
+          console.log(response);
+          alert("成功");
+        });
+      });
+    });
+
+    // 删除缓存
+    document.getElementById("remove-cache").addEventListener("click", () => {
+      caches.open("my-cache").then((cache) => {
+        cache.delete("/").then(() => {
+          console.log("删除成功");
+          alert("成功");
+        });
+      });
+    });
+
+    // 清空缓存
+    document.getElementById("clear-cache").addEventListener("click", () => {
+      caches.open("my-cache").then((cache) => {
+        cache.keys().then((keys) => {
+          keys.forEach((key) => {
+            cache.delete(key);
+          });
+        });
+        alert("成功");
+      });
+    });
+  </script>
   <script>
     (() => {
       const t = {
         id: 0,
       };
       navigator.serviceWorker.getRegistrations().then(async (registrations) => {
-        let hasServiceWorker = true;
+        let hasServiceWorker = false;
+        console.log("registrations", registrations);
         registrations.forEach((sw) => {
-          // 注销serviceWorker
+          // 注销所有serviceWorker
           //   for (let registration of registrations) {
           //     registration.unregister();
           //   }
-        //   判断是否存在serviceWorker
-            if (sw.scope === " http://127.0.0.1:8080/") {
-              hasServiceWorker = sw;
-            //   sw.unregister()
-            }
+
+          //   判断是否存在指定作用域的serviceWorker
+          if (sw.scope === " http://127.0.0.1:8080/") {
+            hasServiceWorker = sw;
+            // sw.unregister()
+          }
         });
+        // return;
+
         // 更新serviceworker
         // const registration = await navigator.serviceWorker.getRegistration()
         // registration.update();
-        const permission = await Notification.requestPermission();
-        console.log("permission", permission);
+
         if (!hasServiceWorker) {
           // 注册 Service Worker
+          // 1. 注册`ServiceWorker`获得`registration`对象
           const registration = await navigator.serviceWorker.register(
             "./service-worker.js",
             {
               scope: "/",
             }
           );
-          console.log(
-            "Service Worker registered with scope：",
-            registration.scope
-          );
+          // 查询浏览器是否有推送权限
+          const permission = await Notification.requestPermission();
+          console.log("permission", permission);
           if (permission === "granted") {
+            // 基础消息
             registration.showNotification("Hello World");
+            /**
+             * 交互消息
+             * @param title 消息标题
+             * @param options 消息配置
+             *        options.body 消息内容
+             *        options.icon 消息图标
+             *        options.tag 消息标签
+             *        options.data 消息数据
+             *        options.actions 消息交互按钮
+             * @returns Promise
+             */
+            registration.showNotification("Hello World!", {
+              body: "This is a flower!",
+              icon: "./flower.JPG",
+              actions: [
+                {
+                  action: "yes",
+                  title: "Yes",
+                },
+                {
+                  action: "no",
+                  title: "No",
+                },
+              ],
+            });
           }
+
           // 2. 通过`registration`对象获得`PushManager`对象
           const pushManager = registration.pushManager;
-          // 3. 通过`PushManager`对象订阅消息推送，获得`subscription`对象
+          // 判断是否已经有订阅
           const hasSubscription = await pushManager.getSubscription();
+          console.log("hasSubscription", hasSubscription);
           if (!hasSubscription) {
+            // 3. 通过`PushManager`对象订阅消息推送，获得`subscription`对象
             const subscription = await pushManager.subscribe({
+              // 公钥生成方法见webpush.js
               // 是否只有用户可见
               userVisibleOnly: true,
               // 服务器公钥
               applicationServerKey:
                 "BDNofQmRYyHU9MQWpgib4rDnN8SVKE_hp6gyb7RZlYBFtz2Mi-I3QQ8emDgO4bvnoxEz1JEda08rdmp2P0NuMNE",
             });
+            // 4. 将`subscription`对象发送给服务器，由服务器保存
             console.log("subscription", subscription);
           } else {
             console.log("hasSubscription", hasSubscription);
@@ -70,10 +149,12 @@
         } else {
           console.log("已存在service worker");
         }
+
         // 监听从service worker线程发送到主线程的message
         navigator.serviceWorker.addEventListener("message", (event) => {
           console.log("service worker传到主线程的事件：", event);
           console.log("t:", t);
+          registration.showNotification("接收到service worker传到主线程的消息");
         });
 
         // postMessage方法，从主线程发送数据到worker，注意：所有数据必须是深拷贝，以免发生并发问题
@@ -93,6 +174,33 @@
               console.log("fetch-data:", data);
             });
         });
+
+        // 更新缓存
+        navigator.serviceWorker.ready.then((registration) => {
+          document
+            .getElementById("updateCache")
+            .addEventListener("click", () => {
+              console.log("更新缓存");
+              fetch("./update.json")
+                .then((res) => {
+                  return res.json();
+                })
+                .then(async (data) => {
+                  console.log("update-data:", data);
+                  if (data.needUpdate) {
+                    // 有变化，注册 sync 事件
+                    try {
+                      await registration.sync.register('sync');
+                      console.log("触发更新");
+                    } catch (error) {
+                      console.log("触发更新失败：", error);
+                    }
+                  }
+                });
+            });
+        });
+
+        // 加载图片
         document.getElementById("image").addEventListener("click", () => {
           console.log("加载图片");
           const box = document.getElementById("image-box");

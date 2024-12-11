@@ -81,6 +81,20 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+const syncData = () => {
+  fetch("./data.json")
+    .then((res) => {
+      return res.json();
+    })
+    .then((data) => {
+      console.log("update-caches");
+      // 更新缓存
+      caches.open("demo-cache").then((cache) => {
+        cache.put("/data.json", new Response(JSON.stringify(data)));
+      });
+    });
+};
+
 // 注册 push 事件，监听并推送消息
 self.addEventListener("push", (event) => {
   const data = event.data.json();
@@ -95,16 +109,3 @@ self.addEventListener("notificationcallback", (event) => {
   self.registration.showNotification(data.title);
 });
 
-const syncData = () => {
-  fetch("./data.json")
-    .then((res) => {
-      return res.json();
-    })
-    .then((data) => {
-      console.log("update-caches");
-      // 更新缓存
-      caches.open("demo-cache").then((cache) => {
-        cache.put("/data.json", new Response(JSON.stringify(data)));
-      });
-    });
-};
